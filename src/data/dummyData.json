@@ -1,0 +1,18 @@
+[
+  {
+    "id": "1",
+    "name": "Wireless Headphones",
+    "category": "Electronics",
+    "price": 95.5,
+    "inStock": true,
+    "description": "Noise-cancelling over-ear wireless headphones with 40-hour battery life."
+  },
+  {
+    "id": "2",
+    "name": "Leather Journal",
+    "category": "Stationery",
+    "price": 24.5,
+    "inStock": true,
+    "description": "Handcrafted genuine leather journal with 200 pages of unlined archival paper."
+  }
+]

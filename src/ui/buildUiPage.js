@@ -46,6 +46,10 @@ function buildUiPage() {
       font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.6;
       color: #dee3e8; white-space: pre-wrap; word-break: break-all;
     }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
   </style>
   <script id="tailwind-config">
     tailwind.config = {
@@ -77,6 +81,15 @@ function buildUiPage() {
                     "label-caps": ["Inter"],
                     "body-md": ["Inter"],
                     "headline-md": ["Inter"]
+                },
+                "keyframes": {
+                    "fadeIn": {
+                        "0%": { opacity: "0", transform: "translateY(5px)" },
+                        "100%": { opacity: "1", transform: "translateY(0)" }
+                    }
+                },
+                "animation": {
+                    "fadeIn": "fadeIn 0.3s ease-out"
                 }
             }
         }
@@ -92,8 +105,44 @@ function buildUiPage() {
     let liveTimer = null;
 
     function render() {
-      appEl.innerHTML = buildApp();
-      bind();
+      if (!appEl.innerHTML) {
+        appEl.innerHTML = buildApp();
+        bind();
+      } else {
+        updateSidebar();
+        updateMain();
+      }
+    }
+
+    function updateSidebar() {
+      const sidebarReqList = document.getElementById('sidebar-req-list');
+      const reqCount = document.getElementById('req-count');
+      if (sidebarReqList) sidebarReqList.innerHTML = buildReqList();
+      if (reqCount) {
+        const n = state.requests.length;
+        reqCount.textContent = \`\${n} REQUEST\${n !== 1 ? 'S' : ''}\`;
+      }
+      
+      const liveBtn = document.getElementById('live-btn');
+      if (liveBtn) {
+        liveBtn.className = \`live-btn \${state.live ? 'live-on text-secondary' : 'text-on-surface-variant'} flex items-center text-[10px] uppercase tracking-wider font-bold px-2.5 py-1.5 rounded-lg bg-[rgba(255,255,255,0.03)] hover:bg-[rgba(255,255,255,0.08)] border border-[rgba(255,255,255,0.05)] transition-all\`;
+        liveBtn.innerHTML = \`<span class="live-dot"></span> \${state.live ? 'LIVE' : 'PAUSED'}\`;
+      }
+      bindSidebar();
+    }
+
+    function updateMain() {
+      const mainEl = document.getElementById('main-content');
+      if (mainEl) {
+        const newMainHTML = buildMain();
+        if (mainEl.innerHTML !== newMainHTML) {
+            mainEl.outerHTML = newMainHTML;
+            bindMain();
+        }
+      } else {
+        appEl.innerHTML = buildApp();
+        bind();
+      }
     }
 
     function buildApp() {
@@ -103,23 +152,23 @@ function buildUiPage() {
     function buildSidebar() {
       const n = state.requests.length;
       return \`
-        <aside class="w-[280px] min-w-[280px] flex flex-col h-screen py-4 bg-surface-container border-r border-outline-variant transition-all duration-200">
-          <div class="px-4 mb-6 flex items-center justify-between">
-            <div class="flex items-center gap-3">
-                <div class="w-8 h-8 rounded bg-primary-container flex items-center justify-center">
+        <aside class="w-[320px] min-w-[320px] flex flex-col h-screen py-6 bg-[rgba(15,20,24,0.8)] backdrop-blur-xl border-r border-[rgba(255,255,255,0.05)] shadow-[4px_0_24px_rgba(0,0,0,0.5)] z-10 transition-all duration-300">
+          <div class="px-6 mb-8 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary-container flex items-center justify-center shadow-lg shadow-primary/20">
                     <span class="material-symbols-outlined text-on-primary-container" style="font-variation-settings: 'FILL' 1;">api</span>
                 </div>
                 <div>
-                    <h2 class="text-[14px] font-bold text-on-surface leading-tight">API Inspector</h2>
-                    <p class="text-[10px] uppercase tracking-widest text-on-surface-variant opacity-60">\${n} REQUEST\${n !== 1 ? 'S' : ''}</p>
+                    <h2 class="text-base font-bold text-white tracking-wide leading-tight">Inspector</h2>
+                    <p id="req-count" class="text-[10px] uppercase tracking-widest text-primary/80 font-medium mt-0.5">\${n} REQUEST\${n !== 1 ? 'S' : ''}</p>
                 </div>
             </div>
-            <button class="live-btn \${state.live ? 'live-on text-secondary' : 'text-on-surface-variant'} flex items-center text-[10px] uppercase tracking-wider font-bold px-2 py-1 rounded hover:bg-surface-container-highest transition-colors" data-action="toggle-live">
+            <button id="live-btn" class="live-btn \${state.live ? 'live-on text-secondary' : 'text-on-surface-variant'} flex items-center text-[10px] uppercase tracking-wider font-bold px-2.5 py-1.5 rounded-lg bg-[rgba(255,255,255,0.03)] hover:bg-[rgba(255,255,255,0.08)] border border-[rgba(255,255,255,0.05)] transition-all" data-action="toggle-live">
                 <span class="live-dot"></span> \${state.live ? 'LIVE' : 'PAUSED'}
             </button>
           </div>
           
-          <nav class="flex-1 overflow-y-auto px-2 space-y-1">
+          <nav id="sidebar-req-list" class="flex-1 overflow-y-auto px-4 space-y-2 pb-6 custom-scrollbar">
             \${buildReqList()}
           </nav>
         </aside>
@@ -128,13 +177,14 @@ function buildUiPage() {
 
     function buildReqList() {
       if (!state.requests.length) {
-        return '<div class="text-xs text-on-surface-variant p-4 text-center border border-dashed border-outline-variant rounded mt-4">Waiting for requests...<br><br>POST to <span class="text-primary">/api/log</span></div>';
+        return '<div class="text-xs text-on-surface-variant/70 p-6 text-center border border-dashed border-[rgba(255,255,255,0.1)] rounded-xl mt-4 bg-[rgba(255,255,255,0.02)]">Waiting for requests...<br><br>POST to <span class="text-primary font-code-sm">/api/log</span></div>';
       }
       return state.requests.map(req => {
-        const active = req.id === state.selectedId ? 'bg-surface-bright border-outline-variant text-on-surface' : 'border-transparent text-on-surface-variant hover:bg-surface-container-highest';
+        const active = req.id === state.selectedId ? 'bg-[rgba(255,255,255,0.06)] border-[rgba(255,255,255,0.15)] shadow-inner text-white' : 'border-transparent text-on-surface hover:bg-[rgba(255,255,255,0.03)] hover:border-[rgba(255,255,255,0.05)]';
         const m = req.method || 'GET';
         const known = ['POST','GET','PUT','DELETE','PATCH'];
         const mClass = known.includes(m) ? 'm-' + m : 'text-on-surface';
+        const bgClass = known.includes(m) ? 'bg-m-' + m : 'bg-[rgba(255,255,255,0.1)]';
         
         const hc = Object.keys(req.headers || {}).length;
         const bc = Object.keys(req.body || {}).length;
@@ -142,14 +192,17 @@ function buildUiPage() {
         const fc = (req.files || []).length;
         
         return \`
-          <button class="w-full text-left p-3 rounded border \${active} transition-colors mb-1" data-req="\${esc(req.id)}">
-            <div class="flex items-center justify-between mb-1">
-              <span class="font-code-sm text-[11px] font-bold \${mClass}">\${esc(m)}</span>
-              <span class="text-[10px] opacity-60 font-code-sm">\${esc(new Date(req.receivedAt).toLocaleTimeString())}</span>
+          <button class="w-full text-left p-4 rounded-xl border \${active} transition-all duration-200 group" data-req="\${esc(req.id)}">
+            <div class="flex items-center justify-between mb-2">
+              <span class="font-code-sm text-[11px] font-bold px-2 py-0.5 rounded-md \${bgClass} \${mClass}">\${esc(m)}</span>
+              <span class="text-[10px] text-on-surface-variant font-code-sm group-hover:text-white transition-colors">\${esc(new Date(req.receivedAt).toLocaleTimeString())}</span>
             </div>
-            <div class="font-code-sm text-[12px] truncate mb-2 text-on-surface">\${esc(req.path || '/')}</div>
-            <div class="flex gap-2 text-[9px] uppercase tracking-wider opacity-60">
-                <span>H:\${hc}</span><span>B:\${bc}</span><span>U:\${uc}</span><span>F:\${fc}</span>
+            <div class="font-code-sm text-[13px] truncate mb-3 text-white/90 group-hover:text-white transition-colors">\${esc(req.path || '/')}</div>
+            <div class="flex gap-3 text-[10px] uppercase tracking-wider font-medium text-on-surface-variant/70">
+                <span class="flex items-center gap-1"><span class="material-symbols-outlined text-[12px]">data_object</span>\${hc}</span>
+                <span class="flex items-center gap-1"><span class="material-symbols-outlined text-[12px]">description</span>\${bc}</span>
+                <span class="flex items-center gap-1"><span class="material-symbols-outlined text-[12px]">link</span>\${uc}</span>
+                <span class="flex items-center gap-1"><span class="material-symbols-outlined text-[12px]">attach_file</span>\${fc}</span>
             </div>
           </button>
         \`;
@@ -159,10 +212,15 @@ function buildUiPage() {
     function buildMain() {
       if (!state.requests.length) {
         return \`
-          <main class="flex-1 flex flex-col items-center justify-center bg-surface-dim p-8 text-center">
-            <span class="material-symbols-outlined text-6xl text-outline-variant mb-4" style="font-size: 64px">sensors</span>
-            <h2 class="text-xl font-bold text-on-surface mb-2">Listening for incoming requests</h2>
-            <p class="text-on-surface-variant text-sm max-w-md">Send a POST request to <strong>/api/log</strong> to see the headers, body, URLs, and uploaded files appear here instantly.</p>
+          <main id="main-content" class="flex-1 flex flex-col items-center justify-center bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-surface-dim relative overflow-hidden">
+            <div class="absolute inset-0 bg-gradient-to-br from-primary/5 to-secondary/5 backdrop-blur-[2px]"></div>
+            <div class="relative z-10 flex flex-col items-center glass-panel p-12 rounded-3xl shadow-2xl max-w-lg border border-white/10">
+                <div class="w-24 h-24 rounded-full bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.1)] flex items-center justify-center mb-6 shadow-[0_0_40px_rgba(142,213,255,0.2)]">
+                    <span class="material-symbols-outlined text-5xl text-primary animate-pulse" style="font-size: 48px">sensors</span>
+                </div>
+                <h2 class="text-2xl font-bold text-white mb-3 tracking-tight">Listening for requests</h2>
+                <p class="text-on-surface-variant text-center leading-relaxed">Send a POST request to <strong class="text-primary font-code-sm">/api/log</strong> to see the headers, body, URLs, and uploaded files appear here instantly.</p>
+            </div>
           </main>
         \`;
       }
@@ -170,8 +228,11 @@ function buildUiPage() {
       if (state.selectedId !== req.id) state.selectedId = req.id;
       
       const items = getItems(req);
-      const selItem = items.find((i) => i.key === state.itemKey) || (items.length ? items[0] : null);
-      if (selItem && state.itemKey !== selItem.key) state.itemKey = selItem.key;
+      let selItem = items.find((i) => i.key === state.itemKey);
+      if (!selItem) {
+          selItem = items.length ? items[0] : null;
+          if (selItem) state.itemKey = selItem.key;
+      }
       
       const counts = {
         headers: Object.keys(req.headers || {}).length,
@@ -183,35 +244,31 @@ function buildUiPage() {
       const mClass = ['POST','GET','PUT','DELETE','PATCH'].includes(req.method) ? 'bg-m-' + req.method + ' m-' + req.method : 'bg-surface-container m-OTHER';
 
       return \`
-        <main class="flex-1 flex flex-col min-w-0 bg-surface-dim">
-          <!-- Request Header Info -->
-          <div class="px-6 py-4 flex flex-col gap-2 border-b border-outline-variant bg-surface-container-low">
-            <div class="flex items-center gap-3">
-              <span class="px-2 py-0.5 rounded border text-[11px] font-bold font-code-sm \${mClass}">\${esc(req.method)}</span>
-              <span class="font-code-sm text-sm text-on-surface truncate">\${esc(req.path)}</span>
-              <div class="ml-auto flex gap-4 text-xs text-on-surface-variant font-code-sm">
-                <span>\${esc(req.ip)}</span>
-                <span>\${esc(new Date(req.receivedAt).toLocaleString())}</span>
+        <main id="main-content" class="flex-1 flex flex-col min-w-0 bg-[#0B0F12] relative">
+          <div class="px-8 py-6 flex flex-col gap-2 border-b border-[rgba(255,255,255,0.05)] bg-[rgba(255,255,255,0.02)] backdrop-blur-md relative z-10">
+            <div class="flex items-center gap-4">
+              <span class="px-3 py-1 rounded-md border text-xs font-bold font-code-sm shadow-sm \${mClass}">\${esc(req.method)}</span>
+              <span class="font-code-sm text-lg text-white truncate font-medium">\${esc(req.path)}</span>
+              <div class="ml-auto flex items-center gap-6 text-sm text-on-surface-variant font-code-sm">
+                <span class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.05)]"><span class="material-symbols-outlined text-[16px]">router</span>\${esc(req.ip)}</span>
+                <span class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.05)]"><span class="material-symbols-outlined text-[16px]">schedule</span>\${esc(new Date(req.receivedAt).toLocaleString())}</span>
               </div>
             </div>
           </div>
           
-          <!-- Tabs -->
-          <div class="flex border-b border-outline-variant bg-surface-container-low px-4">
+          <div class="flex border-b border-[rgba(255,255,255,0.05)] bg-[rgba(255,255,255,0.01)] px-6 relative z-10">
             \${mkTab('headers', 'Headers', counts.headers)}
             \${mkTab('body', 'Body', counts.body)}
             \${mkTab('urls', 'URLs', counts.urls)}
             \${mkTab('files', 'Files', counts.files)}
           </div>
           
-          <!-- Inspector Grid -->
-          <div class="flex-1 flex overflow-hidden">
-            <!-- Left Pane (Keys) -->
-            <div class="w-1/3 min-w-[200px] border-r border-outline-variant bg-surface-dim overflow-y-auto p-2">
+          <div class="flex-1 flex overflow-hidden relative">
+            <div class="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-30 pointer-events-none"></div>
+            <div class="w-[30%] min-w-[250px] max-w-[400px] border-r border-[rgba(255,255,255,0.05)] bg-[rgba(255,255,255,0.01)] overflow-y-auto p-4 custom-scrollbar relative z-10">
                 \${buildItems(items, selItem)}
             </div>
-            <!-- Right Pane (Value) -->
-            <div class="w-2/3 bg-surface-container-low overflow-y-auto p-6">
+            <div class="flex-1 bg-transparent overflow-y-auto p-8 custom-scrollbar relative z-10">
                 \${buildValue(selItem)}
             </div>
           </div>
@@ -220,10 +277,10 @@ function buildUiPage() {
     }
 
     function mkTab(id, label, count) {
-      const active = state.tab === id ? 'text-primary border-primary' : 'text-on-surface-variant border-transparent hover:text-on-surface';
+      const active = state.tab === id ? 'text-primary border-primary bg-[rgba(142,213,255,0.05)]' : 'text-on-surface-variant border-transparent hover:text-white hover:bg-[rgba(255,255,255,0.02)]';
       return \`
-        <button class="flex items-center gap-2 px-4 py-3 border-b-2 text-xs font-bold uppercase tracking-wider transition-colors \${active}" data-tab="\${id}">
-          \${esc(label)} <span class="bg-surface-container-highest px-1.5 py-0.5 rounded text-[10px]">\${count}</span>
+        <button class="flex items-center gap-2 px-6 py-4 border-b-2 text-[13px] font-bold uppercase tracking-wider transition-all \${active}" data-tab="\${id}">
+          \${esc(label)} <span class="bg-[rgba(255,255,255,0.1)] text-white px-2 py-0.5 rounded-full text-[10px]">\${count}</span>
         </button>
       \`;
     }
@@ -236,13 +293,13 @@ function buildUiPage() {
     }
 
     function buildItems(items, selItem) {
-      if (!items.length) return '<div class="text-xs text-on-surface-variant p-4 text-center">Empty section</div>';
+      if (!items.length) return '<div class="text-[13px] text-on-surface-variant/50 p-8 text-center flex flex-col items-center gap-2"><span class="material-symbols-outlined text-3xl">inbox</span>Empty</div>';
       return items.map((item) => {
-        const active = selItem && item.key === selItem.key ? 'bg-surface-container-high border-outline-variant' : 'border-transparent hover:bg-surface-container';
+        const active = selItem && item.key === selItem.key ? 'bg-primary/10 border-primary/30 shadow-[inset_4px_0_0_rgba(142,213,255,1)] text-white' : 'border-transparent text-on-surface hover:bg-[rgba(255,255,255,0.03)] hover:border-[rgba(255,255,255,0.05)]';
         return \`
-          <button class="w-full text-left p-2.5 rounded border \${active} transition-colors mb-1" data-item="\${esc(item.key)}">
-            <div class="font-code-sm text-[12px] text-primary truncate mb-1">\${esc(item.key)}</div>
-            <div class="font-code-sm text-[11px] text-on-surface-variant truncate">\${esc(shortVal(item.value))}</div>
+          <button class="w-full text-left p-3.5 rounded-xl border \${active} transition-all duration-200 mb-2 group" data-item="\${esc(item.key)}">
+            <div class="font-code-sm text-[13px] \${selItem && item.key === selItem.key ? 'text-primary font-bold' : 'text-white/80 group-hover:text-white'} truncate mb-1.5">\${esc(item.key)}</div>
+            <div class="font-code-sm text-[11px] text-on-surface-variant/70 truncate group-hover:text-on-surface-variant transition-colors">\${esc(shortVal(item.value))}</div>
           </button>
         \`;
       }).join('');
@@ -251,9 +308,11 @@ function buildUiPage() {
     function buildValue(selItem) {
       if (!selItem) {
         return \`
-          <div class="flex flex-col items-center justify-center h-full text-on-surface-variant opacity-60">
-            <span class="material-symbols-outlined text-4xl mb-2">data_object</span>
-            <span class="text-sm">Select an item to view details</span>
+          <div class="flex flex-col items-center justify-center h-full text-on-surface-variant/40">
+            <div class="w-24 h-24 rounded-full bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.05)] flex items-center justify-center mb-6">
+                <span class="material-symbols-outlined text-5xl">data_object</span>
+            </div>
+            <span class="text-base font-medium tracking-wide">Select an item to view details</span>
           </div>
         \`;
       }
@@ -262,12 +321,14 @@ function buildUiPage() {
       
       if (selItem.link) {
         html += \`
-          <div class="mb-6">
-            <div class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-2">URL Target</div>
-            <div class="flex items-center gap-3 bg-surface-dim border border-outline-variant rounded p-2">
-                <input type="text" readonly value="\${esc(selItem.link)}" class="flex-1 bg-transparent border-none text-sm font-code-sm text-primary focus:ring-0">
-                <a href="\${esc(selItem.link)}" target="_blank" rel="noreferrer" class="flex items-center gap-1 px-3 py-1.5 bg-primary-container text-on-primary-container rounded text-xs font-bold hover:brightness-110 transition-all">
-                    Open <span class="material-symbols-outlined text-[14px]">open_in_new</span>
+          <div class="mb-8">
+            <div class="flex items-center gap-2 text-[11px] font-bold text-primary uppercase tracking-widest mb-3">
+                <span class="material-symbols-outlined text-[16px]">link</span> URL Target
+            </div>
+            <div class="flex items-center gap-3 bg-[rgba(0,0,0,0.3)] border border-[rgba(255,255,255,0.1)] rounded-xl p-2.5 shadow-inner">
+                <input type="text" readonly value="\${esc(selItem.link)}" class="flex-1 bg-transparent border-none text-sm font-code-sm text-white focus:ring-0 px-2 outline-none">
+                <a href="\${esc(selItem.link)}" target="_blank" rel="noreferrer" class="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-primary-container to-primary text-on-primary-container rounded-lg text-[13px] font-bold hover:shadow-[0_0_15px_rgba(56,189,248,0.4)] transition-all hover:scale-[1.02]">
+                    Open <span class="material-symbols-outlined text-[16px]">open_in_new</span>
                 </a>
             </div>
           </div>
@@ -275,19 +336,21 @@ function buildUiPage() {
         
         const prev = buildPreview(selItem);
         if (prev) {
-            html += \`<div class="mb-6"><div class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest mb-2">Preview</div>\${prev}</div>\`;
+            html += \`<div class="mb-8 animate-[fadeIn_0.3s_ease-out]"><div class="flex items-center gap-2 text-[11px] font-bold text-secondary uppercase tracking-widest mb-3"><span class="material-symbols-outlined text-[16px]">visibility</span> Preview</div>\${prev}</div>\`;
         }
       }
 
       html += \`
-        <div>
-          <div class="flex items-center justify-between mb-2">
-            <div class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest">\${selItem.link ? 'Metadata' : esc(selItem.key)}</div>
-            <button class="flex items-center gap-1 text-[10px] uppercase font-bold tracking-wider px-2 py-1 border border-outline-variant rounded hover:bg-surface-bright transition-colors" data-copy="\${esc(raw)}">
-                <span class="material-symbols-outlined text-[14px]">content_copy</span> Copy
+        <div class="animate-[fadeIn_0.3s_ease-out]">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2 text-[11px] font-bold text-tertiary uppercase tracking-widest">
+                <span class="material-symbols-outlined text-[16px]">\${selItem.link ? 'info' : 'data_object'}</span> \${selItem.link ? 'Metadata' : esc(selItem.key)}
+            </div>
+            <button class="flex items-center gap-1.5 text-[11px] uppercase font-bold tracking-wider px-3 py-1.5 border border-[rgba(255,255,255,0.1)] rounded-lg hover:bg-[rgba(255,255,255,0.1)] hover:border-[rgba(255,255,255,0.2)] text-white transition-all active:scale-95" data-copy="\${esc(raw)}">
+                <span class="material-symbols-outlined text-[16px]">content_copy</span> Copy
             </button>
           </div>
-          <pre class="bg-surface-dim border border-outline-variant rounded p-4 vbox max-h-[400px] overflow-auto">\${esc(raw)}</pre>
+          <pre class="bg-[rgba(0,0,0,0.3)] border border-[rgba(255,255,255,0.1)] rounded-xl p-5 vbox max-h-[500px] overflow-auto shadow-inner text-[13px] font-code-sm text-white/90 custom-scrollbar">\${esc(raw)}</pre>
         </div>
       \`;
       return html;
@@ -297,23 +360,20 @@ function buildUiPage() {
       const url = item.link;
       const ct = (item.value && item.value.contentType) || '';
       const lower = url.toLowerCase().split('?')[0];
-      const safeUrl = esc(url);
       const isImg  = ct.startsWith('image/') || /\\.(jpg|jpeg|png|gif|webp|svg|avif|bmp|ico)$/.test(lower);
       const isVid  = ct.startsWith('video/') || /\\.(mp4|webm|ogg|mov)$/.test(lower);
       const isAud  = ct.startsWith('audio/') || /\\.(mp3|wav|ogg|flac|aac)$/.test(lower);
       const isHtml = ct.startsWith('text/html') || lower.endsWith('.html') || lower.endsWith('.htm');
       const isPdf  = ct === 'application/pdf' || lower.endsWith('.pdf');
       
-      const frameClasses = "w-full border border-outline-variant bg-black rounded-lg overflow-hidden flex items-center justify-center min-h-[100px]";
+      const frameClasses = "w-full border border-[rgba(255,255,255,0.1)] bg-[rgba(0,0,0,0.5)] rounded-xl overflow-hidden flex items-center justify-center min-h-[200px] shadow-lg backdrop-blur-sm relative";
       
       const rawUrlAttr = url.replace(/"/g, '&quot;');
-      if (isImg)  return \`<div class="\${frameClasses} p-2"><img src="\${rawUrlAttr}" referrerpolicy="no-referrer" alt="Preview" class="max-w-full max-h-[300px] object-contain rounded" onerror="this.outerHTML='<div class=&quot;text-xs text-red-400 p-4 text-center&quot;>Failed to load image.<br>The link might be expired or restricted.</div>'" /></div>\`;
-      if (isVid)  return \`<div class="\${frameClasses}"><video src="\${rawUrlAttr}" referrerpolicy="no-referrer" controls class="max-w-full max-h-[300px]"></video></div>\`;
-      if (isAud)  return \`<div class="\${frameClasses} bg-surface-dim p-4"><audio src="\${rawUrlAttr}" referrerpolicy="no-referrer" controls class="w-full"></audio></div>\`;
-      if (isPdf)  return \`<div class="\${frameClasses}"><iframe src="\${rawUrlAttr}" referrerpolicy="no-referrer" class="w-full h-[300px] border-none" title="PDF Preview"></iframe></div>\`;
-      
-      // If it's a generic link like Reddit, loading it in iframe usually fails due to X-Frame-Options or CSP.
-      if (isHtml) return \`<div class="\${frameClasses}"><iframe src="\${rawUrlAttr}" referrerpolicy="no-referrer" sandbox="allow-scripts allow-same-origin" class="w-full h-[300px] border-none bg-white" title="Page Preview" onerror="this.outerHTML='<div class=&quot;text-xs text-on-surface-variant p-4&quot;>Preview blocked by site policies (X-Frame-Options)</div>'"></iframe></div>\`;
+      if (isImg)  return \`<div class="\${frameClasses} p-4"><div class="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-20"></div><img src="\${rawUrlAttr}" referrerpolicy="no-referrer" alt="Preview" class="max-w-full max-h-[400px] object-contain rounded-lg shadow-2xl relative z-10" onerror="this.outerHTML='<div class=&quot;text-[13px] text-red-400 p-8 text-center flex flex-col items-center gap-2&quot;><span class=&quot;material-symbols-outlined text-3xl&quot;>broken_image</span>Failed to load image.<br>The link might be expired or restricted.</div>'" /></div>\`;
+      if (isVid)  return \`<div class="\${frameClasses}"><video src="\${rawUrlAttr}" referrerpolicy="no-referrer" controls class="max-w-full max-h-[400px] outline-none w-full bg-black"></video></div>\`;
+      if (isAud)  return \`<div class="\${frameClasses} p-8 bg-[rgba(255,255,255,0.02)]"><audio src="\${rawUrlAttr}" referrerpolicy="no-referrer" controls class="w-full shadow-lg rounded-full"></audio></div>\`;
+      if (isPdf)  return \`<div class="\${frameClasses} h-[600px]"><iframe src="https://docs.google.com/viewer?url=\${encodeURIComponent(url)}&embedded=true" referrerpolicy="no-referrer" class="w-full h-full border-none bg-white" title="PDF Preview"></iframe></div>\`;
+      if (isHtml) return \`<div class="\${frameClasses} h-[500px]"><iframe src="\${rawUrlAttr}" referrerpolicy="no-referrer" sandbox="allow-scripts allow-same-origin" class="w-full h-full border-none bg-white" title="Page Preview" onerror="this.outerHTML='<div class=&quot;text-xs text-on-surface-variant p-4&quot;>Preview blocked by site policies (X-Frame-Options)</div>'"></iframe></div>\`;
       
       return '';
     }
@@ -331,32 +391,46 @@ function buildUiPage() {
     }
 
     function bind() {
-      document.querySelectorAll('[data-req]').forEach((el) => {
-        el.addEventListener('click', () => { state.selectedId = el.getAttribute('data-req'); state.itemKey = null; render(); });
+      bindSidebar();
+      bindMain();
+    }
+    
+    function bindSidebar() {
+      document.querySelectorAll('#sidebar-req-list [data-req]').forEach((el) => {
+        el.addEventListener('click', () => { 
+            state.selectedId = el.getAttribute('data-req'); 
+            state.itemKey = null; 
+            render(); 
+        });
       });
-      document.querySelectorAll('[data-tab]').forEach((el) => {
-        el.addEventListener('click', () => { state.tab = el.getAttribute('data-tab'); state.itemKey = null; render(); });
-      });
-      document.querySelectorAll('[data-item]').forEach((el) => {
-        el.addEventListener('click', () => { state.itemKey = el.getAttribute('data-item'); render(); });
-      });
-      document.querySelectorAll('[data-action="toggle-live"]').forEach((el) => {
-        el.addEventListener('click', () => {
+      document.querySelectorAll('#live-btn').forEach((el) => {
+        const newEl = el.cloneNode(true);
+        el.parentNode.replaceChild(newEl, el);
+        newEl.addEventListener('click', () => {
           state.live = !state.live;
           if (state.live) { poll(); liveTimer = setInterval(poll, 2000); }
           else { clearInterval(liveTimer); liveTimer = null; }
           render();
         });
       });
-      document.querySelectorAll('[data-copy]').forEach((el) => {
+    }
+
+    function bindMain() {
+      document.querySelectorAll('#main-content [data-tab]').forEach((el) => {
+        el.addEventListener('click', () => { state.tab = el.getAttribute('data-tab'); state.itemKey = null; render(); });
+      });
+      document.querySelectorAll('#main-content [data-item]').forEach((el) => {
+        el.addEventListener('click', () => { state.itemKey = el.getAttribute('data-item'); render(); });
+      });
+      document.querySelectorAll('#main-content [data-copy]').forEach((el) => {
         el.addEventListener('click', () => {
           navigator.clipboard.writeText(el.getAttribute('data-copy')).then(() => {
             const orig = el.innerHTML;
-            el.innerHTML = '<span class="material-symbols-outlined text-[14px]">check</span> Copied!';
-            el.classList.add('text-secondary', 'border-secondary');
+            el.innerHTML = '<span class="material-symbols-outlined text-[16px]">check</span> Copied!';
+            el.classList.add('text-secondary', 'border-secondary', 'bg-[rgba(78,222,163,0.1)]');
             setTimeout(() => { 
                 el.innerHTML = orig; 
-                el.classList.remove('text-secondary', 'border-secondary');
+                el.classList.remove('text-secondary', 'border-secondary', 'bg-[rgba(78,222,163,0.1)]');
             }, 1500);
           }).catch(() => {});
         });
@@ -368,6 +442,9 @@ function buildUiPage() {
       try {
         const res = await fetch('/api/requests');
         const data = await res.json();
+        const newRequestsStr = JSON.stringify(data.requests || []);
+        if (state._lastRequestsStr === newRequestsStr) return;
+        state._lastRequestsStr = newRequestsStr;
         const prevIds = state.requests.map((r) => r.id);
         state.requests = data.requests || [];
         if (state.requests[0] && !prevIds.includes(state.requests[0].id)) {
