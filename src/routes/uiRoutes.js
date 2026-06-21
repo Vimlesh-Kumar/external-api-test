@@ -2,13 +2,12 @@ const express = require("express");
 
 const { buildUiPage } = require("../ui/buildUiPage");
 
+const { buildLandingPage } = require("../ui/buildLandingPage");
+
 const uiRouter = express.Router();
 
 uiRouter.get("/", (_req, res) => {
-  res.json({
-    message: "API is running",
-    endpoints: ["GET /ui", "GET /api/requests", "POST /api/log"],
-  });
+  res.type("html").send(buildLandingPage());
 });
 
 uiRouter.get("/ui", (_req, res) => {
