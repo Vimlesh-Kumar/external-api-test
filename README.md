@@ -4,6 +4,14 @@ A beautiful, lightweight, and modern API testing utility built with **Node.js, E
 
 ---
 
+## 🔗 Access URLs
+
+The application is deployed and can be accessed at:
+- [https://dummy.api.vimlesh.dev](https://dummy.api.vimlesh.dev)
+- [https://external-api-test.onrender.com](https://external-api-test.onrender.com)
+
+---
+
 ## 🚀 Key Features
 
 * **Interactive Landing Page**: A premium workspace documenting all endpoints dynamically with built-in cURL code generators and immediate access links.
